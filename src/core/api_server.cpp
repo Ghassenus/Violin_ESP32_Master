@@ -3,11 +3,10 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
-
 #include "battery.h"
 #include "parameters_manager.h"
 #include "wifi_manager.h"
-
+#include "lvgl_helper.h"
 static WebServer server(80);
 
 void api_server_init() {
@@ -94,6 +93,22 @@ void api_server_init() {
     }
 
     parameters_manager_set_time_format(doc["format24"]);
+    server.send(200, "application/json", "{\"result\":\"ok\"}");
+  });
+
+  // POST /api/display/brightness
+  server.on("/api/display/brightness", HTTP_POST, []() {
+    StaticJsonDocument<64> doc;
+    DeserializationError err = deserializeJson(doc, server.arg("plain"));
+
+    if (err || !doc["brightness"].is<int>()) {
+        server.send(400, "application/json", "{\"error\":\"brightness (0-100) required\"}");
+        return;
+    }
+
+    int brightness = doc["brightness"];
+    screen_set_brightness_percent(brightness);
+
     server.send(200, "application/json", "{\"result\":\"ok\"}");
   });
 

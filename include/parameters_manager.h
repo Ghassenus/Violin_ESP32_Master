@@ -9,3 +9,5 @@ bool parameters_manager_is_24h_format();
 void parameters_manager_get_date(int &year, int &month, int &day);
 int parameters_manager_get_minute();
 int parameters_manager_get_hour();
+int parameters_manager_get_brightness();       // Récupérer la luminosité (0–100)
+void parameters_manager_set_brightness(int percent); // Sauvegarder

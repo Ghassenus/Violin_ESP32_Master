@@ -52,5 +52,6 @@ if (WiFi.isConnected()) {
 void loop() {
   lvgl_loop(); // à appeler en permanence 
   api_server_loop();
+  ota_manager_handle();
   
 }

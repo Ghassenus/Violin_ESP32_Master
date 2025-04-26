@@ -37,7 +37,7 @@ static void menu_btn_event_cb(lv_event_t* e) {
 }
 
 lv_obj_t* ui_settings_create() {
-    ui_status_bar_set_title("Réglages");
+    ui_status_bar_set_title("Reglages");
 
     lv_obj_t* root = lv_obj_create(lv_scr_act());
     lv_obj_set_size(root, LV_PCT(100), LV_PCT(100));
@@ -69,7 +69,7 @@ lv_obj_t* ui_settings_create() {
         {"Date & Heure", ui_settings_datetime_create},
         {"Affichage",    ui_settings_display_create},
         {"Audio",        ui_settings_audio_create},
-        {"Fonction 1",   ui_settings_func1_create},
+        {"Infos",        ui_settings_inf_system_create},
         {"Fonction 2",   ui_settings_func2_create},
         {"Fonction 3",   ui_settings_func3_create},
     };

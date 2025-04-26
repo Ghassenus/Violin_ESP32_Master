@@ -1,6 +1,8 @@
 #include "ui_settings_pages.h"
 #include "parameters_manager.h"
 #include <Arduino.h>
+#include <lvgl_helper.h>
+#include <WiFi.h>
 
 // === Pointeurs globaux pour les rollers ===
 static lv_obj_t* roller_day;
@@ -9,6 +11,19 @@ static lv_obj_t* roller_year;
 static lv_obj_t* roller_hour;
 static lv_obj_t* roller_minute;
 static lv_obj_t* switch_format;
+static lv_obj_t* slider_brightness;
+static lv_obj_t* label_value;
+
+// Fonction pour changer la luminosité
+static void slider_brightness_cb(lv_event_t* e) {
+    int val = lv_slider_get_value(slider_brightness);
+    lv_label_set_text_fmt(label_value, "%d%%", val);
+
+    // Appliquer la luminosité sur le rétroéclairage (0-255)
+    screen_set_brightness_percent(val);
+    // Et sauvegarder dans NVS
+    parameters_manager_set_brightness(val);
+}
 
 // === Callback pour sauver la date + heure + format ===
 static void save_datetime_cb(lv_event_t* e) {
@@ -142,10 +157,43 @@ lv_obj_t* ui_settings_display_create(lv_obj_t* parent) {
     lv_obj_t* cont = lv_obj_create(parent);
     lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(cont, lv_color_hex(0x303030), 0);
+    lv_obj_set_style_pad_all(cont, 10, 0);
+    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
 
-    lv_obj_t* label = lv_label_create(cont);
-    lv_label_set_text(label, "Réglages Affichage");
-    lv_obj_center(label);
+    // Label titre
+    lv_obj_t* label_title = lv_label_create(cont);
+    lv_label_set_text(label_title, "Luminosite");
+    lv_obj_set_style_text_color(label_title, lv_color_white(), 0);
+    lv_obj_set_style_text_font(label_title, &lv_font_montserrat_16, 0);
+    lv_obj_align(label_title, LV_ALIGN_TOP_MID, 0, 5);
+
+    // Récupérer la valeur initiale
+    int brightness = parameters_manager_get_brightness();
+
+    // Slider container
+    lv_obj_t* row = lv_obj_create(cont);
+    lv_obj_set_size(row, LV_PCT(100), 50);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_all(row, 5, 0);
+    lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_align(row, LV_ALIGN_CENTER, 0); // Centre verticalement les enfants (slider + label)
+
+    // Slider
+    slider_brightness = lv_slider_create(row);
+    lv_slider_set_range(slider_brightness, 0, 100);
+    lv_slider_set_value(slider_brightness, brightness, LV_ANIM_OFF);
+    lv_obj_set_size(slider_brightness, LV_PCT(80), 30);
+    lv_obj_center(slider_brightness);
+
+    // Label valeur
+    label_value = lv_label_create(row);
+    lv_label_set_text_fmt(label_value, "%d%%", brightness);
+    lv_obj_set_style_text_color(label_value, lv_color_white(), 0);
+    lv_obj_center(label_value);
+
+    // Appliquer callback
+    lv_obj_add_event_cb(slider_brightness, slider_brightness_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     return cont;
 }
@@ -157,21 +205,43 @@ lv_obj_t* ui_settings_audio_create(lv_obj_t* parent) {
     lv_obj_set_style_bg_color(cont, lv_color_hex(0x303030), 0);
 
     lv_obj_t* label = lv_label_create(cont);
-    lv_label_set_text(label, "Réglages Audio");
+    lv_label_set_text(label, "Reglages Audio");
     lv_obj_center(label);
 
     return cont;
 }
 
-// === Page Fonction 1 ===
-lv_obj_t* ui_settings_func1_create(lv_obj_t* parent) {
+// === Page Infos Système ===
+lv_obj_t* ui_settings_inf_system_create(lv_obj_t* parent) {
     lv_obj_t* cont = lv_obj_create(parent);
     lv_obj_set_size(cont, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_color(cont, lv_color_hex(0x303030), 0);
+    lv_obj_set_style_pad_all(cont, 10, 0);
+    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scrollbar_mode(cont, LV_SCROLLBAR_MODE_OFF);
 
-    lv_obj_t* label = lv_label_create(cont);
-    lv_label_set_text(label, "Fonction 1");
-    lv_obj_center(label);
+    auto add_info = [&](const char* label, const char* value) {
+        lv_obj_t* row = lv_obj_create(cont);
+        lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_style_pad_row(row, 5, 0);
+        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+
+        lv_obj_t* lbl = lv_label_create(row);
+        lv_label_set_text_fmt(lbl, "%s:", label);
+        lv_obj_set_style_text_color(lbl, lv_color_white(), 0);
+        lv_obj_set_width(lbl, 80);
+
+        lv_obj_t* val = lv_label_create(row);
+        lv_label_set_text(val, value);
+        lv_obj_set_style_text_color(val, lv_color_white(), 0);
+    };
+
+    // Informations
+    add_info("SSID", WiFi.SSID().c_str());
+    add_info("IP", WiFi.localIP().toString().c_str());
+    add_info("Version", "1.0.0");
+    add_info("Contact", "support@violin.local");
 
     return cont;
 }

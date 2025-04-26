@@ -107,3 +107,22 @@ int parameters_manager_get_hour() {
     month = tm_now.tm_mon  + 1;    // struct tm stocke mois 0..11
     day   = tm_now.tm_mday;
   }
+
+  // --- Gestion de la luminosité ---
+// (sauvegarde dans namespace "params", clé "brightness")
+
+int parameters_manager_get_brightness() {
+    Preferences p;
+    p.begin("params", true);
+    int val = p.getInt("brightness", 100); // 100% par défaut
+    p.end();
+    return constrain(val, 0, 100);
+}
+
+void parameters_manager_set_brightness(int percent) {
+    percent = constrain(percent, 0, 100);
+    Preferences p;
+    p.begin("params", false);
+    p.putInt("brightness", percent);
+    p.end();
+}

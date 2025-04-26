@@ -46,7 +46,7 @@ lv_obj_align(lbl_title, LV_ALIGN_CENTER, 0, 0);
 
 // Icône OTA (droite)
 icon_ota = lv_label_create(bar);
-lv_label_set_text(icon_ota, "↻");
+lv_label_set_text(icon_ota, LV_SYMBOL_REFRESH);
 lv_obj_add_flag(icon_ota, LV_OBJ_FLAG_HIDDEN);
 lv_obj_set_style_text_color(icon_ota, lv_color_hex(0xFF0000), 0); // rouge
 lv_obj_align(icon_ota, LV_ALIGN_RIGHT_MID, -5, 0);
