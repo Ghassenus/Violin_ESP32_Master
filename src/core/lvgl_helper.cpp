@@ -20,6 +20,8 @@ TFT_eSPI tft = TFT_eSPI();
 SPIClass spiTouch(HSPI);
 XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
 static int current_pwm_value = 255; // 100% lumineux au démarrage
+static int target_pwm_value = 255;
+static int _current_brightness_percent = 100; // Variable interne
 
 // === LVGL buffers ===
 static lv_disp_draw_buf_t draw_buf;
@@ -98,18 +100,27 @@ void lvgl_setup() {
 
 void screen_set_brightness_percent(int percent) {
     percent = constrain(percent, 0, 100);
-    int target_pwm = map(percent, 0, 100, 0, 255);
+    _current_brightness_percent = percent;
+    target_pwm_value = map(percent, 0, 100, 0, 255);
+}  
 
-    // Appliquer un fondu doux
-    if (current_pwm_value < target_pwm) {
+void screen_brightness_loop() {
+    if (current_pwm_value == target_pwm_value) return;
+
+    if (current_pwm_value < target_pwm_value) {
         current_pwm_value += 5;
-        if (current_pwm_value > target_pwm) current_pwm_value = target_pwm;
-    } else if (current_pwm_value > target_pwm) {
+        if (current_pwm_value > target_pwm_value) current_pwm_value = target_pwm_value;
+    } else if (current_pwm_value > target_pwm_value) {
         current_pwm_value -= 5;
-        if (current_pwm_value < target_pwm) current_pwm_value = target_pwm;
+        if (current_pwm_value < target_pwm_value) current_pwm_value = target_pwm_value;
     }
 
     ledcWrite(0, current_pwm_value);
+}
+
+
+int screen_get_brightness_percent() {
+    return _current_brightness_percent;
 }
 
 // === À appeler dans loop() ===

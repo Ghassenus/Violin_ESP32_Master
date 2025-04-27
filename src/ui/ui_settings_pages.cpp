@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <lvgl_helper.h>
 #include <WiFi.h>
+#include <logger.h>
 
 // === Pointeurs globaux pour les rollers ===
 static lv_obj_t* roller_day;
@@ -40,7 +41,7 @@ static void save_datetime_cb(lv_event_t* e) {
     parameters_manager_set_minute(minute);
     parameters_manager_set_time_format(fmt24);
 
-    Serial.printf("[DateTime] %02d/%02d/%d %02d:%02d - format %s\n",
+    LOGI("[DateTime] %02d/%02d/%d %02d:%02d - format %s\n",
                   day, month, year, hour, minute, fmt24 ? "24h" : "12h");
 }
 

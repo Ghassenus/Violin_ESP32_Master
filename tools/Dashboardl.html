@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 Violin - Dashboard</title>
+  <style>
+    body { font-family: sans-serif; background: #101010; color: white; padding: 20px; }
+    h1 { color: #00ccff; }
+    .section { margin-bottom: 20px; }
+    label { display: block; margin-top: 10px; }
+    input, select, button { padding: 5px; margin-top: 5px; }
+    .small { font-size: 0.9em; color: #aaa; }
+    .wifi-network { margin: 5px 0; }
+  </style>
+</head>
+<body>
+
+<h1>ESP32 Violin 🎻</h1>
+
+<script>
+const ESP_IP = "192.168.1.59"; // 🔥 Adresse IP de ton ESP ici
+</script>
+
+<div class="section" id="status">
+  <h2>Status</h2>
+  <div>WiFi: <span id="wifi"></span></div>
+  <div>SSID: <span id="ssid"></span></div>
+  <div>IP: <span id="ip"></span></div>
+  <div>RSSI: <span id="rssi"></span> dBm</div>
+  <div>Batterie: <span id="batt"></span>% (<span id="batt_voltage"></span> mV)</div>
+  <div>Heure: <span id="time"></span></div>
+  <div>Date: <span id="date"></span></div>
+  <div>Format 24h: <span id="fmt24h"></span></div>
+  <div>RAM: <span id="ram_usage"></span>%</div>
+  <div>FLASH: <span id="flash_usage"></span>%</div>
+</div>
+
+<div class="section">
+  <h2>Wi-Fi</h2>
+  <button onclick="scanWifi()">🔍 Scanner Réseaux</button>
+  <div id="scan_results"></div>
+
+  <h3>Connexion Manuelle</h3>
+  <label>SSID: <input type="text" id="ssid_input"></label>
+  <label>Mot de passe: <input type="password" id="pass_input"></label>
+  <button onclick="connectWifi()">Connexion</button>
+</div>
+
+<div class="section">
+  <h2>Réglages</h2>
+  <h3>Heure et Date</h3>
+  <label>Heure: <input type="number" id="hour_input" min="0" max="23"></label>
+  <label>Minute: <input type="number" id="minute_input" min="0" max="59"></label>
+  <button onclick="setTime()">Définir Heure</button>
+
+  <label>Année: <input type="number" id="year_input" min="2020"></label>
+  <label>Mois: <input type="number" id="month_input" min="1" max="12"></label>
+  <label>Jour: <input type="number" id="day_input" min="1" max="31"></label>
+  <button onclick="setDate()">Définir Date</button>
+
+  <h3>Format Heure</h3>
+  <select id="format_select">
+    <option value="true">24h</option>
+    <option value="false">12h</option>
+  </select>
+  <button onclick="setFormat()">Définir Format</button>
+
+  <h3>Luminosité</h3>
+  <input type="range" id="brightness_slider" min="0" max="100" onchange="setBrightness()">
+  <span id="brightness_value">100%</span>
+</div>
+
+<div class="section">
+  <h2>Système</h2>
+  <button onclick="rebootESP()">🔄 Redémarrer ESP32</button>
+</div>
+
+<script>
+let firstLoad = true;
+
+function api(path) {
+  return `http://${ESP_IP}${path}`;
+}
+
+function refreshStatus() {
+  fetch(api("/api/status"))
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('wifi').innerText = data.wifi ? "Connecté" : "Déconnecté";
+      document.getElementById('ssid').innerText = data.ssid || "-";
+      document.getElementById('ip').innerText = data.ip || "-";
+      document.getElementById('rssi').innerText = data.rssi || "-";
+      document.getElementById('batt').innerText = data.batt + " %";
+      document.getElementById('batt_voltage').innerText = data.batt_voltage;
+      document.getElementById('time').innerText = `${data.hour}:${String(data.minute).padStart(2, '0')}`;
+      document.getElementById('date').innerText = `${data.day}/${data.month}/${data.year}`;
+      document.getElementById('fmt24h').innerText = data.fmt24h ? "Oui" : "Non";
+      document.getElementById('ram_usage').innerText = data.ram_usage + "%";
+      document.getElementById('flash_usage').innerText = data.flash_usage + "%";
+
+      // ➡️ Seulement au premier chargement
+      if (firstLoad) {
+        document.getElementById('hour_input').value = data.hour;
+        document.getElementById('minute_input').value = data.minute;
+        document.getElementById('year_input').value = data.year;
+        document.getElementById('month_input').value = data.month;
+        document.getElementById('day_input').value = data.day;
+        firstLoad = false;
+      }
+
+      if (data.brightness !== undefined) {
+        document.getElementById('brightness_slider').value = data.brightness;
+        document.getElementById('brightness_value').innerText = data.brightness + "%";
+      }
+    })
+    .catch(error => {
+      console.error(error);
+      alert("Erreur de connexion à l'ESP32 !");
+    });
+}
+
+function scanWifi() {
+  fetch(api("/api/wifi/scan"))
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('scan_results');
+      container.innerHTML = "";
+      data.networks.forEach(net => {
+        const el = document.createElement('div');
+        el.className = "wifi-network";
+        el.innerText = `${net.ssid} (${net.rssi} dBm) [${net.enc}]`;
+        container.appendChild(el);
+      });
+    })
+    .catch(error => {
+      alert("Erreur scan WiFi !");
+      console.error(error);
+    });
+}
+
+function connectWifi() {
+  const ssid = document.getElementById('ssid_input').value.trim();
+  const pass = document.getElementById('pass_input').value.trim();
+  if (!ssid) {
+    alert("Veuillez entrer un SSID !");
+    return;
+  }
+  fetch(api("/api/wifi/connect"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ssid, pass })
+  }).then(response => response.json())
+    .then(data => {
+      alert("Connexion envoyée !");
+      refreshStatus();
+    });
+}
+
+function setTime() {
+  const hour = parseInt(document.getElementById('hour_input').value);
+  const minute = parseInt(document.getElementById('minute_input').value);
+  if (isNaN(hour) || isNaN(minute)) {
+    alert("Veuillez entrer une heure valide.");
+    return;
+  }
+  fetch(api("/api/params/time"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hour, minute })
+  }).then(response => response.json())
+    .then(data => {
+      alert("Heure mise à jour !");
+      refreshStatus();
+    });
+}
+
+function setDate() {
+  const year = parseInt(document.getElementById('year_input').value);
+  const month = parseInt(document.getElementById('month_input').value);
+  const day = parseInt(document.getElementById('day_input').value);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    alert("Veuillez entrer une date valide.");
+    return;
+  }
+  fetch(api("/api/params/date"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ year, month, day })
+  }).then(response => response.json())
+    .then(data => {
+      alert("Date mise à jour !");
+      refreshStatus();
+    });
+}
+
+function setFormat() {
+  const format24 = document.getElementById('format_select').value === "true";
+  fetch(api("/api/params/format"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ format24 })
+  }).then(response => response.json())
+    .then(data => {
+      alert("Format heure changé !");
+      refreshStatus();
+    });
+}
+
+function setBrightness() {
+  const brightness = parseInt(document.getElementById('brightness_slider').value);
+  fetch(api("/api/display/brightness"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ brightness })
+  }).then(response => response.json())
+    .then(data => {
+      document.getElementById('brightness_value').innerText = brightness + "%";
+    });
+}
+
+function rebootESP() {
+  if (confirm("Êtes-vous sûr de vouloir redémarrer l'ESP32 ?")) {
+    fetch(api("/api/system/reboot"), { method: "POST" })
+      .then(response => response.json())
+      .then(data => alert("Redémarrage en cours..."));
+  }
+}
+
+// Rafraîchissement auto toutes les 5 secondes
+setInterval(refreshStatus, 5000);
+
+// Premier rafraîchissement au démarrage
+refreshStatus();
+</script>
+
+</body>
+</html>

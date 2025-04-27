@@ -1,6 +1,7 @@
 #include "wifi_manager.h"
 #include <WiFi.h>
 #include <Preferences.h>
+#include <logger.h>
 
 static const int MAX_AP = 16;
 static char ssids[MAX_AP][33];
@@ -44,7 +45,7 @@ void wifi_manager_connect() {
   p.begin("wifi", false); // <--- Correction ici (false pour lecture/écriture)
 
   if (!p.isKey("ssid")) {
-      Serial.println("Pas de credentials Wi-Fi sauvegardés !");
+    log_warn("Pas de credentials Wi-Fi sauvegardés !");
       p.end();
       return;
   }

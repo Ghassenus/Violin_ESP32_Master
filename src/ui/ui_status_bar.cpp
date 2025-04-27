@@ -12,12 +12,34 @@ static lv_obj_t* icon_wifi;
 static lv_obj_t* icon_batt;
 static lv_obj_t* icon_ota;
 static lv_obj_t* lbl_title;
+static uint8_t _charging_anim_step = 0;
+static uint8_t _battery_anim_frame = 0;
+static lv_timer_t* timer_status = nullptr;
+static lv_timer_t* timer_charge_anim = nullptr;
 
 static void _status_bar_timer_cb(lv_timer_t*) {
     ui_status_bar_update_time();
-    ui_status_bar_set_battery(battery_get_percent());
     ui_status_bar_set_wifi(WiFi.status() == WL_CONNECTED);
     ui_status_bar_notify_ota(ota_manager_is_running());
+
+    if (!battery_is_charging()) {
+        int battery = battery_get_percent();
+        ui_status_bar_set_battery(battery);
+    }
+}
+
+static void _status_bar_charge_anim_cb(lv_timer_t*) {
+    if (battery_is_charging()) {
+        _battery_anim_frame = (_battery_anim_frame + 1) % 4;
+        const char* symbols[] = {
+            LV_SYMBOL_BATTERY_EMPTY,
+            LV_SYMBOL_BATTERY_1,
+            LV_SYMBOL_BATTERY_2,
+            LV_SYMBOL_BATTERY_FULL
+        };
+        lv_label_set_text(icon_batt, symbols[_battery_anim_frame]);
+        lv_obj_set_style_text_color(icon_batt, col_green, 0);
+    }
 }
 
 lv_obj_t* ui_status_bar_create() {
@@ -61,10 +83,13 @@ icon_wifi = lv_label_create(bar);
 lv_label_set_text(icon_wifi, LV_SYMBOL_WIFI);
 lv_obj_align_to(icon_wifi, icon_batt, LV_ALIGN_OUT_LEFT_MID, -5, 0);
 
-// Démarre le timer
-lv_timer_create(_status_bar_timer_cb, 5000, nullptr);
 
-    return bar;
+// Timer normal pour status général (5s)
+  timer_status = lv_timer_create(_status_bar_timer_cb, 5000, nullptr);
+ // Timer rapide pour animation batterie (500ms)
+  timer_charge_anim = lv_timer_create(_status_bar_charge_anim_cb, 500, nullptr);
+    
+  return bar;
 }
 
 

@@ -6,26 +6,28 @@
 #include <wifi_manager.h>
 #include <WiFi.h>
 #include <ota_manager.h>
+#include "uart_manager.h"
+#include "telnet_manager.h"
+#include <esp_adc_cal.h>
+#include <battery.h>
+#include <logger.h>
+
+// === Batterie charge debug ===
+static uint32_t last_batt_debug = 0;
+static bool last_charging_status = false;
 
 void setup() {
   Serial.begin(115200);
+  delay(200);
+  Serial.println();
+  Serial.println(F("[Boot] Démarrage..."));
+  
 
   // Initialisation des couches de base
   lvgl_setup();         // LVGL + écran + tactile
   
    // ➔ Tenter de se connecter au Wi-Fi
    wifi_manager_connect();
-
-   // [DEBUG] Afficher infos réseau
-if (WiFi.isConnected()) {
-  Serial.println("✅ Connexion Wi-Fi établie !");
-  Serial.print("SSID : ");
-  Serial.println(WiFi.SSID());
-  Serial.print("Adresse IP : ");
-  Serial.println(WiFi.localIP());
-} else {
-  Serial.println("⚠️  Connexion Wi-Fi échouée. Démarrage en mode AP ");
-}
 
    // ➔ Si non connecté, basculer automatiquement en AP
    if (WiFi.status() != WL_CONNECTED) {
@@ -36,12 +38,15 @@ if (WiFi.isConnected()) {
        Serial.print("Adresse IP : ");
        Serial.println(WiFi.localIP());
    }
+   // ➔ Maintenant que WiFi est OK : ON PEUT démarrer Telnet
+   telnet_manager_init();
 
    // ➔ Ensuite tu peux démarrer ton serveur API, OTA, etc.
-   api_server_init();
+   api_server_init(); // initialiser le serveur API
    ota_manager_init(); // <=== Activer OTA
-
+   uart_manager_init(); // Activer communication UART
   ui_manager::init();   // Status bar + main_panel + gestionnaire UI
+ 
   
 
   // Afficher la première page
@@ -53,5 +58,8 @@ void loop() {
   lvgl_loop(); // à appeler en permanence 
   api_server_loop();
   ota_manager_handle();
-  
-}
+  uart_manager_loop();
+  telnet_manager_handle();
+  screen_brightness_loop();
+ 
+ }
