@@ -7,7 +7,7 @@ struct UartMessage {
 };
 
 // Fonction pour parser un message du type "{TYPE:DATA}"
-bool uart_parse_message(const String& raw, UartMessage& msg) {
+inline bool uart_parse_message(const String& raw, UartMessage& msg) {
     if (!raw.startsWith("{") || !raw.endsWith("}")) {
         return false; // format invalide
     }

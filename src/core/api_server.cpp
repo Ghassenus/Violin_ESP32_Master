@@ -9,6 +9,9 @@
 #include "wifi_manager.h"
 #include "lvgl_helper.h"
 #include <logger.h>
+#include <bluetooth_manager.h>
+#include <uart_dispatcher.h>
+#include <uart_manager.h>
 
 static WebServer server(80);
 
@@ -155,6 +158,48 @@ void api_server_init() {
         ESP.restart();
     });
     api_handle_options(server, "/api/system/reboot");
+
+ // Route: Démarrer un scan Bluetooth
+server.on("/api/bluetooth/scan", HTTP_POST, []() {
+  clear_scanned_devices(); //  Nettoyer avant chaque scan
+  uart_manager_send("BT_SCAN", ""); //  Envoyer la commande de scan à l'ESP2
+  api_send_ok(server);
+});
+api_handle_options(server, "/api/bluetooth/scan");
+
+// Route: Lire les périphériques détectés
+server.on("/api/bluetooth/list", HTTP_GET, []() {
+  StaticJsonDocument<1024> doc;
+  JsonArray devices = doc.createNestedArray("devices");
+
+  for (const BtDevice& dev : get_scanned_devices()) {
+      JsonObject obj = devices.createNestedObject();
+      obj["mac"] = dev.mac;
+      obj["name"] = dev.name;
+  }
+
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+});
+api_handle_options(server, "/api/bluetooth/list");
+
+  // POST /api/bluetooth/connect
+  server.on("/api/bluetooth/connect", HTTP_POST, []() {
+    StaticJsonDocument<200> doc;
+    DeserializationError err = deserializeJson(doc, server.arg("plain"));
+
+    if (err || !doc["mac"]) {
+        server.send(400, "application/json", "{\"error\":\"mac address required\"}");
+        return;
+    }
+
+    bluetooth_manager::connect(doc["mac"]);
+    server.send(200, "application/json", "{\"result\":\"connect_sent\"}");
+  });
+
+  
+
 
     // 404
     server.onNotFound([]() {

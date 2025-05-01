@@ -15,6 +15,9 @@
 // === Batterie charge debug ===
 static uint32_t last_batt_debug = 0;
 static bool last_charging_status = false;
+unsigned long last_ping = 0; // test uart
+const unsigned long ping_interval = 5000; // 5 secondes test uart
+
 
 void setup() {
   Serial.begin(115200);
@@ -51,6 +54,7 @@ void setup() {
 
   // Afficher la première page
   ui_manager::show_screen(ui_home_create(),false);
+
  
 }
 
@@ -61,5 +65,5 @@ void loop() {
   uart_manager_loop();
   telnet_manager_handle();
   screen_brightness_loop();
- 
+  
  }
