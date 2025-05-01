@@ -1,0 +1,3 @@
+[submodule "Esp_Violin_Main_Board"]
+	path = Esp_Violin_Main_Board
+	url = https://github.com/Ghassenus/Esp_Violin_Main_Board
