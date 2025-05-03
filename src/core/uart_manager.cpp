@@ -1,6 +1,7 @@
  #include "uart_manager.h"
 #include "uart_parser.h" 
-#include "uart_dispatcher.h" 
+#include "uart_dispatcher.h"
+#include "api_server.h" 
 #include <logger.h>
 
 #define UART_ESP2 Serial2

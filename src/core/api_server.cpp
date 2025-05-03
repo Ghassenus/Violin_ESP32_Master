@@ -10,22 +10,19 @@
 #include "lvgl_helper.h"
 #include <logger.h>
 #include <bluetooth_manager.h>
-#include <uart_dispatcher.h>
 #include <uart_manager.h>
+#include "ws_server.h"
 
 static WebServer server(80);
 
 void api_server_init() {
     log_info("[API] Initialisation serveur HTTP...");
 
-    // Accueil
-    server.on("/", HTTP_GET, []() {
-        api_send_cors(server);
+    register_handler("/", HTTP_GET, []() {
         server.send(200, "text/plain", "Hello World");
     });
 
-    // GET /api/status
-    server.on("/api/status", HTTP_GET, []() {
+    register_handler("/api/status", HTTP_GET, []() {
         StaticJsonDocument<512> doc;
         doc["wifi"]   = WiFi.isConnected();
         doc["ssid"]   = WiFi.SSID();
@@ -58,148 +55,68 @@ void api_server_init() {
         serializeJson(doc, out);
         api_send_json(server, 200, out);
     });
-    api_handle_options(server, "/api/status");
 
-    // GET /api/wifi/scan
-    server.on("/api/wifi/scan", HTTP_GET, []() {
-        int n = WiFi.scanNetworks();
+    // Routes Bluetooth
+    register_handler("/api/bluetooth/scan", HTTP_POST, []() {
+        uart_clear_scanned_devices();
+        uart_manager_send("BT_SCAN", "");
+        api_send_ok(server);
+    });
+
+    register_handler("/api/bluetooth/devices", HTTP_GET, []() {
         StaticJsonDocument<1024> doc;
-        JsonArray arr = doc.createNestedArray("networks");
-
-        for (int i = 0; i < n; i++) {
-            JsonObject net = arr.createNestedObject();
-            net["ssid"] = WiFi.SSID(i);
-            net["rssi"] = WiFi.RSSI(i);
-            net["enc"] = WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "open" : "secured";
+        JsonArray devices = doc.createNestedArray("devices");
+        for (const BtDevice& dev : uart_get_scanned_devices()) {
+            JsonObject obj = devices.createNestedObject();
+            obj["mac"] = dev.mac;
+            obj["name"] = dev.name;
         }
-        WiFi.scanDelete(); // Libère la mémoire
-
         String out;
         serializeJson(doc, out);
-        api_send_json(server, 200, out);
+        server.send(200, "application/json", out);
     });
-    api_handle_options(server, "/api/wifi/scan");
 
-    // POST /api/wifi/connect
-    server.on("/api/wifi/connect", HTTP_POST, []() {
+    register_handler("/api/bluetooth/connect", HTTP_POST, []() {
         StaticJsonDocument<200> doc;
         DeserializationError err = deserializeJson(doc, server.arg("plain"));
-        if (err || !doc["ssid"] || !doc["pass"]) {
-            api_send_error(server, "ssid & pass required");
+        if (err || !doc["mac"]) {
+            api_send_error(server, "mac address required");
             return;
         }
-        Preferences p; p.begin("wifi", false);
-        p.putString("ssid", doc["ssid"].as<const char*>());
-        p.putString("pass", doc["pass"].as<const char*>());
-        p.end();
-
-        wifi_manager_connect();
+        bluetooth_manager::connect(doc["mac"]);
         api_send_ok(server);
     });
-    api_handle_options(server, "/api/wifi/connect");
 
-    // POST /api/params/time
-    server.on("/api/params/time", HTTP_POST, []() {
-        StaticJsonDocument<128> doc;
-        DeserializationError err = deserializeJson(doc, server.arg("plain"));
-        if (err || !doc["hour"] || !doc["minute"]) {
-            api_send_error(server, "hour & minute required");
-            return;
-        }
-        parameters_manager_set_hour(doc["hour"]);
-        parameters_manager_set_minute(doc["minute"]);
+    // Commandes audio (UART vers ESP2)
+    register_handler("/api/bluetooth/play", HTTP_POST, []() {
+        uart_manager_send("BT_PLAY", "");
         api_send_ok(server);
     });
-    api_handle_options(server, "/api/params/time");
 
-    // POST /api/params/date
-    server.on("/api/params/date", HTTP_POST, []() {
-        StaticJsonDocument<128> doc;
-        DeserializationError err = deserializeJson(doc, server.arg("plain"));
-        if (err || !doc["year"] || !doc["month"] || !doc["day"]) {
-            api_send_error(server, "year, month & day required");
-            return;
-        }
-        parameters_manager_set_date(doc["year"], doc["month"], doc["day"]);
+    register_handler("/api/bluetooth/stop", HTTP_POST, []() {
+        uart_manager_send("BT_STOP", "");
         api_send_ok(server);
     });
-    api_handle_options(server, "/api/params/date");
 
-    // POST /api/params/format
-    server.on("/api/params/format", HTTP_POST, []() {
-        StaticJsonDocument<64> doc;
-        DeserializationError err = deserializeJson(doc, server.arg("plain"));
-        if (err || !doc["format24"].is<bool>()) {
-            api_send_error(server, "format24 required");
-            return;
-        }
-        parameters_manager_set_time_format(doc["format24"]);
+    register_handler("/api/bluetooth/forward", HTTP_POST, []() {
+        uart_manager_send("BT_FORWARD", "");
         api_send_ok(server);
     });
-    api_handle_options(server, "/api/params/format");
 
-    // POST /api/display/brightness
-    server.on("/api/display/brightness", HTTP_POST, []() {
-        StaticJsonDocument<64> doc;
-        DeserializationError err = deserializeJson(doc, server.arg("plain"));
-        if (err || !doc["brightness"].is<int>()) {
-            api_send_error(server, "brightness (0-100) required");
-            return;
-        }
-        screen_set_brightness_percent(doc["brightness"]);
+    register_handler("/api/bluetooth/backward", HTTP_POST, []() {
+        uart_manager_send("BT_BACKWARD", "");
         api_send_ok(server);
     });
-    api_handle_options(server, "/api/display/brightness");
 
-    // POST /api/system/reboot
-    server.on("/api/system/reboot", HTTP_POST, []() {
-        api_send_json(server, 200, "{\"result\":\"rebooting\"}");
-        delay(100);
-        ESP.restart();
+    register_handler("/api/bluetooth/volup", HTTP_POST, []() {
+        uart_manager_send("BT_VOL_UP", "");
+        api_send_ok(server);
     });
-    api_handle_options(server, "/api/system/reboot");
 
- // Route: Démarrer un scan Bluetooth
-server.on("/api/bluetooth/scan", HTTP_POST, []() {
-  clear_scanned_devices(); //  Nettoyer avant chaque scan
-  uart_manager_send("BT_SCAN", ""); //  Envoyer la commande de scan à l'ESP2
-  api_send_ok(server);
-});
-api_handle_options(server, "/api/bluetooth/scan");
-
-// Route: Lire les périphériques détectés
-server.on("/api/bluetooth/list", HTTP_GET, []() {
-  StaticJsonDocument<1024> doc;
-  JsonArray devices = doc.createNestedArray("devices");
-
-  for (const BtDevice& dev : get_scanned_devices()) {
-      JsonObject obj = devices.createNestedObject();
-      obj["mac"] = dev.mac;
-      obj["name"] = dev.name;
-  }
-
-  String json;
-  serializeJson(doc, json);
-  server.send(200, "application/json", json);
-});
-api_handle_options(server, "/api/bluetooth/list");
-
-  // POST /api/bluetooth/connect
-  server.on("/api/bluetooth/connect", HTTP_POST, []() {
-    StaticJsonDocument<200> doc;
-    DeserializationError err = deserializeJson(doc, server.arg("plain"));
-
-    if (err || !doc["mac"]) {
-        server.send(400, "application/json", "{\"error\":\"mac address required\"}");
-        return;
-    }
-
-    bluetooth_manager::connect(doc["mac"]);
-    server.send(200, "application/json", "{\"result\":\"connect_sent\"}");
-  });
-
-  
-
+    register_handler("/api/bluetooth/voldown", HTTP_POST, []() {
+        uart_manager_send("BT_VOL_DOWN", "");
+        api_send_ok(server);
+    });
 
     // 404
     server.onNotFound([]() {
@@ -210,6 +127,27 @@ api_handle_options(server, "/api/bluetooth/list");
     server.begin();
 }
 
+void on_uart_message(const UartMessage& msg) {
+    if (msg.type == "ERROR") {
+        log_error("[API/UART] Erreur UART : " + msg.data);
+        ws_broadcast("uart_error", msg.data);
+    } else if (msg.type == "CONNECT_OK") {
+        ws_broadcast("bt_status", "connect_ok");
+    } else if (msg.type == "DISCONNECTED") {
+        ws_broadcast("bt_status", "disconnected");
+    } else {
+        log_warn("[API/UART] Message ignoré : " + msg.type + " / " + msg.data);
+    }
+}
+
 void api_server_loop() {
     server.handleClient();
+}
+
+void register_handler(const String& path, http_method method, std::function<void()> handler) {
+    server.on(path.c_str(), method, [handler]() {
+        api_send_cors(server);
+        handler();
+    });
+    api_handle_options(server, path.c_str());
 }

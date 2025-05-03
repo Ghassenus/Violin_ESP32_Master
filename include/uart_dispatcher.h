@@ -10,5 +10,5 @@ struct BtDevice{
 
 // Fonction à appeler depuis uart_manager
 void uart_dispatch_message(const UartMessage& msg);
-const std::vector<BtDevice>& get_scanned_devices();
-void clear_scanned_devices();
+const std::vector<BtDevice>& uart_get_scanned_devices();
+void uart_clear_scanned_devices();

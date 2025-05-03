@@ -75,13 +75,24 @@ const ESP_IP = "192.168.1.59"; // 🔥 Adresse IP de ton ESP ici
   <button onclick="rebootESP()">🔄 Redémarrer ESP32</button>
 </div>
 
+<div class="section">
+  <h2>Bluetooth</h2>
+  <button onclick="scanBluetooth()"> Scanner périphériques Bluetooth</button>
+  <div id="bt_results"></div>
+</div>
+
+<div id="uart-log" class="log-container">
+  <h3>Erreurs UART</h3>
+  <pre id="uart_errors"></pre>
+</div>
+
 <script>
 let firstLoad = true;
 
 function api(path) {
   return `http://${ESP_IP}${path}`;
 }
-
+ // Section Status
 function refreshStatus() {
   fetch(api("/api/status"))
     .then(response => response.json())
@@ -118,7 +129,7 @@ function refreshStatus() {
       alert("Erreur de connexion à l'ESP32 !");
     });
 }
-
+ // Fonctions WiFi
 function scanWifi() {
   fetch(api("/api/wifi/scan"))
     .then(response => response.json())
@@ -155,7 +166,7 @@ function connectWifi() {
       refreshStatus();
     });
 }
-
+ // Section parametrages (date, time, eclairage)
 function setTime() {
   const hour = parseInt(document.getElementById('hour_input').value);
   const minute = parseInt(document.getElementById('minute_input').value);
@@ -225,6 +236,78 @@ function rebootESP() {
       .then(data => alert("Redémarrage en cours..."));
   }
 }
+
+// Section gestion bluetooh
+function scanBluetooth() {
+  fetch(api("/api/bluetooth/scan"))
+    .then(response => response.json())
+    .then(data => {
+      alert("Scan Bluetooth lancé !");
+      setTimeout(refreshBluetoothList, 2000); // Attente car le scan prend un peu de temps
+    })
+    .catch(err => {
+      alert("Erreur lancement scan !");
+      console.error(err);
+    });
+}
+
+function refreshBluetoothList() {
+  fetch(api("/api/bluetooth/list"))
+    .then(response => response.json())
+    .then(devices => {
+      const container = document.getElementById('bt_results');
+      container.innerHTML = "";
+      if (devices.length === 0) {
+        container.innerText = "Aucun périphérique trouvé.";
+        return;
+      }
+
+      devices.forEach(dev => {
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <b>${dev.name || "(Sans nom)"}</b> - ${dev.mac}
+          <button onclick="connectBluetooth('${dev.mac}')">Connexion</button>
+        `;
+        container.appendChild(div);
+      });
+    });
+}
+
+function connectBluetooth(mac) {
+  fetch(api("/api/bluetooth/connect"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mac })
+  })
+    .then(response => response.json())
+    .then(data => {
+      alert("Connexion demandée !");
+    })
+    .catch(err => {
+      alert("Erreur connexion BT !");
+      console.error(err);
+    });
+}
+
+// Suivi erreurs
+function appendUartError(msg) {
+    const logContainer = document.getElementById('uart-log');
+    if (!logContainer) return;
+
+    const entry = document.createElement('div');
+    entry.className = 'log-error';
+    entry.textContent = '[UART ERROR] ' + msg;
+    logContainer.appendChild(entry);
+}
+
+// WebSocket côté navigateur qui écoute les message d'erreur
+socket.onmessage = function(event) {
+  const msg = JSON.parse(event.data);
+
+  if (msg.type === "uart_error") {
+    appendUartError(msg.data);  // Affiche dans l'UI
+  }
+};
 
 // Rafraîchissement auto toutes les 5 secondes
 setInterval(refreshStatus, 5000);

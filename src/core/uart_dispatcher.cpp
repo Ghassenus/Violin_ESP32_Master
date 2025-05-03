@@ -2,11 +2,12 @@
 #include "uart_dispatcher.h"
 #include "logger.h"
 #include <vector>
+#include <api_server.h>
 
 static std::vector<BtDevice> scanned_devices;
 
 void uart_dispatch_message(const UartMessage& msg) {
-    if (msg.type == "BT_DEVICE") {
+    if (msg.type == "SCAN_RESULT") {
         int sep = msg.data.indexOf('|');
         if (sep != -1) {
             BtDevice dev;
@@ -14,12 +15,8 @@ void uart_dispatch_message(const UartMessage& msg) {
             dev.name = msg.data.substring(sep + 1);
             scanned_devices.push_back(dev);
             log_info("[UART][BT] Appareil trouvé: " + dev.name + " [" + dev.mac + "]");
-        } else {
-            log_error("[UART][BT] Format invalide reçu pour BT_DEVICE: " + msg.data);
+    
         }
-    } 
-    else if (msg.type == "SCAN_RESULT") {
-        log_info("[UART] Périphérique trouvé : " + msg.data);
     } 
     else if (msg.type == "CONNECT_OK") {
         log_info("[UART] Connexion réussie au périphérique !");
@@ -36,14 +33,17 @@ void uart_dispatch_message(const UartMessage& msg) {
     else {
         log_error("[UART] Message UART inconnu : " + msg.type + " / Data: " + msg.data);
     }
+
+      // <--- Relais global à l'API pour WebSocket et autres
+      on_uart_message(msg);  // Appelle la fonction API ici
 }
 
 // ⚡️ Accès à la liste depuis l'API
-const std::vector<BtDevice>& get_scanned_devices() {
+const std::vector<BtDevice>& uart_get_scanned_devices() {
     return scanned_devices;
 }
 
 // Pour reset la liste avant un nouveau scan
-void clear_scanned_devices() {
+void uart_clear_scanned_devices() {
     scanned_devices.clear();
 }

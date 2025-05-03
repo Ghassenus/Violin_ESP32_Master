@@ -22,4 +22,14 @@ void connect(const String& mac_address) {
     uart_manager_send("BT_CONNECT", mac_address);
 }
 
+const std::vector<BtDevice>& get_scanned_devices(){
+    log_info("[BT] DListe des devices enregistré ");
+    return uart_get_scanned_devices();
+}
+
+void clear_scanned_devices (){
+    uart_clear_scanned_devices();
+}
+
+
 }

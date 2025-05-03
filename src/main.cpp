@@ -11,6 +11,7 @@
 #include <esp_adc_cal.h>
 #include <battery.h>
 #include <logger.h>
+#include <ws_server.h>
 
 // === Batterie charge debug ===
 static uint32_t last_batt_debug = 0;
@@ -47,6 +48,7 @@ void setup() {
    // ➔ Ensuite tu peux démarrer ton serveur API, OTA, etc.
    api_server_init(); // initialiser le serveur API
    ota_manager_init(); // <=== Activer OTA
+   ws_server_init();
    uart_manager_init(); // Activer communication UART
   ui_manager::init();   // Status bar + main_panel + gestionnaire UI
  
@@ -61,6 +63,7 @@ void setup() {
 void loop() {
   lvgl_loop(); // à appeler en permanence 
   api_server_loop();
+  ws_server_loop();
   ota_manager_handle();
   uart_manager_loop();
   telnet_manager_handle();
