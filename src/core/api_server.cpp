@@ -55,6 +55,96 @@ void api_server_init() {
         serializeJson(doc, out);
         api_send_json(server, 200, out);
     });
+    // Routes paramétrage
+    register_handler("/api/params/time", HTTP_POST, []() {
+        if (server.hasArg("plain")) {
+            StaticJsonDocument<128> doc;
+            DeserializationError err = deserializeJson(doc, server.arg("plain"));
+            if (!err && doc.containsKey("hour") && doc.containsKey("minute")) {
+                int hour = doc["hour"];
+                int minute = doc["minute"];
+                parameters_manager_set_hour(hour);
+                parameters_manager_set_minute(minute);
+                api_send_ok(server);
+                return;
+            }
+        }
+        api_send_error(server, "Invalid hour/minute");
+    });
+
+    register_handler("/api/params/date", HTTP_POST, []() {
+        if (server.hasArg("plain")) {
+            StaticJsonDocument<128> doc;
+            DeserializationError err = deserializeJson(doc, server.arg("plain"));
+            if (!err && doc.containsKey("year") && doc.containsKey("month") && doc.containsKey("day")) {
+                int year = doc["year"];
+                int month = doc["month"];
+                int day = doc["day"];
+                parameters_manager_set_date(year, month, day);
+                api_send_ok(server);
+                return;
+            }
+        }
+        api_send_error(server, "Invalid date");
+    });
+
+    register_handler("/api/params/format", HTTP_POST, []() {
+        if (server.hasArg("plain")) {
+            StaticJsonDocument<64> doc;
+            DeserializationError err = deserializeJson(doc, server.arg("plain"));
+            if (!err && doc.containsKey("24h")) {
+                bool is24h = doc["24h"];
+                parameters_manager_set_time_format(is24h);
+                api_send_ok(server);
+                return;
+            }
+        }
+        api_send_error(server, "Invalid time format");
+    });
+
+    register_handler("/api/params/brightness", HTTP_POST, []() {
+        if (server.hasArg("plain")) {
+            StaticJsonDocument<64> doc;
+            DeserializationError err = deserializeJson(doc, server.arg("plain"));
+            if (!err && doc.containsKey("percent")) {
+                int percent = doc["percent"];
+                parameters_manager_set_brightness(percent);
+                api_send_ok(server);
+                return;
+            }
+        }
+        api_send_error(server, "Invalid brightness percent");
+    });
+
+    // Routes Wifi:
+    //Lancer un scan Wi-Fi
+    register_handler("/api/wifi/scan", HTTP_POST, []() {
+        wifi_manager_scan_start();
+        api_send_ok(server);
+    });
+   // Récupérer la liste des SSID trouvés
+    register_handler("/api/wifi/list", HTTP_GET, []() {
+        StaticJsonDocument<1024> doc;
+        JsonArray list = doc.createNestedArray("networks");
+        for (int i = 0; i < wifi_manager_get_scan_count(); i++) {
+            JsonObject obj = list.createNestedObject();
+            obj["ssid"] = wifi_manager_get_ssid(i);
+        }
+        String out;
+        serializeJson(doc, out);
+        api_send_json(server, 200, out);
+    });
+     // Forcer une reconnexion avec credentials déjà stockés
+    register_handler("/api/wifi/reconnect", HTTP_POST, []() {
+        wifi_manager_connect();
+        api_send_ok(server);
+    });
+     // Activer le mode Access Point (si pas connecté)
+    register_handler("/api/wifi/ap", HTTP_POST, []() {
+        wifi_manager_start_ap();
+        api_send_ok(server);
+    });
+    
 
     // Routes Bluetooth
     register_handler("/api/bluetooth/scan", HTTP_POST, []() {
@@ -84,6 +174,11 @@ void api_server_init() {
             return;
         }
         bluetooth_manager::connect(doc["mac"]);
+        api_send_ok(server);
+    });
+
+    register_handler("/api/bluetooth/history", HTTP_POST, []() {
+        uart_manager_send("BT_LIST", "");
         api_send_ok(server);
     });
 
@@ -146,7 +241,6 @@ void api_server_loop() {
 
 void register_handler(const String& path, http_method method, std::function<void()> handler) {
     server.on(path.c_str(), method, [handler]() {
-        api_send_cors(server);
         handler();
     });
     api_handle_options(server, path.c_str());
