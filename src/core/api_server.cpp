@@ -108,12 +108,19 @@ void api_server_init() {
             DeserializationError err = deserializeJson(doc, server.arg("plain"));
             if (!err && doc.containsKey("percent")) {
                 int percent = doc["percent"];
-                parameters_manager_set_brightness(percent);
+                screen_set_brightness_percent(percent);
                 api_send_ok(server);
                 return;
             }
         }
         api_send_error(server, "Invalid brightness percent");
+    });
+
+    // POST /api/system/reboot
+    register_handler("/api/system/reboot", HTTP_POST, []() {
+        api_send_json(server, 200, "{\"result\":\"rebooting\"}");
+        delay(100);
+        ESP.restart();
     });
 
     // Routes Wifi:
@@ -226,11 +233,7 @@ void on_uart_message(const UartMessage& msg) {
     if (msg.type == "ERROR") {
         log_error("[API/UART] Erreur UART : " + msg.data);
         ws_broadcast("uart_error", msg.data);
-    } else if (msg.type == "CONNECT_OK") {
-        ws_broadcast("bt_status", "connect_ok");
-    } else if (msg.type == "DISCONNECTED") {
-        ws_broadcast("bt_status", "disconnected");
-    } else {
+       } else {
         log_warn("[API/UART] Message ignoré : " + msg.type + " / " + msg.data);
     }
 }

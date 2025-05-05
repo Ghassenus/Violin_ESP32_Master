@@ -26,7 +26,7 @@ void uart_dispatch_message(const UartMessage& msg) {
         ws_broadcast("bt_device_known", msg.data);  // ← vers WebSocket
     }
     
-    else if (msg.type == "CONNECT_OK") {
+    else if (msg.type == "BT_CONNECT_OK") {
         log_info("[UART] Connexion réussie au périphérique !");
         ws_broadcast("bt_device_connected", msg.data);
     }
